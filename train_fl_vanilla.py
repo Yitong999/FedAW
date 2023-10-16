@@ -22,10 +22,15 @@ from config import ex
 from data.util import get_dataset, IdxDataset, ZippedDataset,average_weights, DatasetSplit
 from module.util import get_model
 from util import MultiDimAverageMeter
-from data.sampling import iid, noniid
 
 import math
 
+import random
+seed=0
+torch.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)
+random.seed(seed)
 
 @ex.automain
 def train(

@@ -176,23 +176,37 @@ def train(
 
     # Set optimizer for the local updates
     
-   
-    data_set_tag_list = ['ColoredMNIST-Skewed0.01-Severity3', 'ColoredMNIST-Skewed0.02-Severity3', 'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.005-Severity3']
-    data_dir = os.path.join(os.getcwd(), '/datasets/debias')
-
+    train_dataset = get_dataset(
+            dataset_tag,
+            data_dir=data_dir,
+            dataset_split="train",
+            transform_split="train",
+        )
+    
+    data_set_tag_list = ['ColoredMNIST-Skewed0.001-Severity3', 'ColoredMNIST-Skewed0.001-Severity4', 
+                         'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
+                         'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4'
+                         'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4'
+                         'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.05-Severity4']
+    # data_dir = os.path.join(log_dir, '/datasets/debias')
+    
+    
+    
     train_loader_list = []
     valid_loader_list = []
 
     for tag in data_set_tag_list:
+        print('tag in each: ', tag)
+        print('data_dir: ', data_dir)
         train_dataset = get_dataset(
-            dataset_tag,
+            dataset_tag = tag,
             data_dir=data_dir,
             dataset_split="train",
             transform_split="train",
         )
 
         valid_dataset = get_dataset(
-                dataset_tag,
+                dataset_tag = tag,
                 data_dir=data_dir,
                 dataset_split="eval",
                 transform_split="eval",
@@ -204,7 +218,7 @@ def train(
         # make loader    
         train_loader = DataLoader(
             train_dataset,
-            batch_size=256,
+            batch_size=3000,
             shuffle=True,
             num_workers=0,
             pin_memory=True,
@@ -220,6 +234,25 @@ def train(
 
         train_loader_list.append(train_loader)
         valid_loader_list.append(valid_loader)
+
+
+        # check
+        # train_iter = iter(train_loader)
+        # index, data, attr = next(train_iter)
+
+        # print(index.shape, data.shape, attr.shape)
+
+        # data = data.to(device)
+        # attr = attr.to(device)
+        # label = attr[:, target_attr_idx]
+        # color = attr[:, bias_attr_idx]
+        
+        # # Count the number of elements with label == color
+        # check = torch.sum(label == color).item()
+
+        # print(f'[check in inilialization]number of bias aligned samples: {check}')
+        # print(f'[check in initialization]number of bias conflicting samples: {len(label) - check}')
+
     '''
      # train_dataset = train_dataset_list[1]
     train_dataset = get_dataset(
@@ -299,14 +332,16 @@ def train(
     
     
     '''
-    train_target_attr = train_dataset.attr[:, target_attr_idx]
-    train_bias_attr = train_dataset.attr[:, bias_attr_idx]
+#     train_target_attr = train_dataset.attr[:, target_attr_idx]
+#     train_bias_attr = train_dataset.attr[:, bias_attr_idx]
 
-    attr_dims = []
+#     attr_dims = []
 
-    attr_dims.append(torch.max(train_target_attr).item() + 1)
-    attr_dims.append(torch.max(train_bias_attr).item() + 1)
+#     attr_dims.append(torch.max(train_target_attr).item() + 1)
+#     attr_dims.append(torch.max(train_bias_attr).item() + 1)
 
+
+    attr_dims = [10, 10]
     num_classes = attr_dims[0]
 
     model_global = get_model(model_tag, num_classes).to(device)
@@ -315,7 +350,7 @@ def train(
     model_biased = get_model(model_tag, num_classes).to(device)
 
     # Training
-    def update_weights(model_b, model_d, client, epochs, local_epochs=5):
+    def update_weights(model_b, model_d, client, epochs, local_epochs=30):
         # Set mode to train model
         model_b.train()
         model_d.train()
@@ -395,16 +430,24 @@ def train(
             label = attr[:, target_attr_idx]
             color = attr[:, bias_attr_idx]
             
+            # Count the number of elements with label == color
+            
+            # check = torch.sum(label == color).item()
+
+            # print(f'number of bias aligned samples: {check}')
+            # print(f'number of bias conflicting samples: {len(label) - check}')
+            
+
             #hacked verison
             data_adv = pgd_attack_adv(device, model_b, model_d, data, label)
             # data_adv = pgd_attack_both_adv(device, model_global, model_b, model_global, data, label)
     
 
             count = [0 for i in range(10)]
-            for j in range(256):
-                count[color[j]] += 1
+            for j in range(512):
+                count[label[j]] += 1
 
-            print(f'client[{client}] images color: ', count)
+            print(f'client[{client}] images label: ', count)
 
             
             
@@ -414,11 +457,6 @@ def train(
                 raise NameError('logit_b')
             logit_d = model_d(data)
             logit_d_adv = model_d(data_adv) 
-            #hacked end
-            
-            
-    #         print('###shape output###: ', logit_b.shape)
-    #         print('###shape labels###: ', label.shape)
             
             loss_b = criterion(logit_b, label).cpu().detach()
             loss_d = criterion(logit_d, label).cpu().detach()
@@ -431,37 +469,8 @@ def train(
             loss_per_sample_b = loss_b
             loss_per_sample_d = loss_d
 
-            # EMA sample loss
-            # sample_loss_ema_b.update(loss_b, index)
-            # sample_loss_ema_d.update(loss_d, index)
-
-            # class-wise normalize
-            # loss_b = sample_loss_ema_b.parameter[index].clone().detach()
-            # loss_d = sample_loss_ema_d.parameter[index].clone().detach()
-
-            # if np.isnan(loss_b.mean().item()):
-            #     raise NameError('loss_b_ema')
-            # if np.isnan(loss_d.mean().item()):
-            #     raise NameError('loss_d_ema')
-            
-            # label_cpu = label.cpu()
-        
-            # for c in range(num_classes):
-            #     class_index = np.where(label_cpu == c)[0]
-            #     max_loss_b = sample_loss_ema_b.max_loss(c)
-            #     max_loss_d = sample_loss_ema_d.max_loss(c)
-            #     loss_b[class_index] /= (max_loss_b + 1e-8)
-            #     loss_d[class_index] /= (max_loss_d + 1e-8)
-
-
-            # re-weighting based on loss value / generalized CE for biased model
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
-#             loss_weight = loss_d / (loss_d + 1e-8)
 
-            #hacked
-            # beta = epochs * 0.01
-            # if beta > 0.5:
-            #     beta = 0.5
             beta = 0.4
                 
             loss_weight_adv = beta * (1 - loss_weight)
@@ -490,39 +499,34 @@ def train(
 
             # for a easier look up, we only check for client 1
             if client == 1:
-                bias_attr = attr[:, bias_attr_idx]
-
-                aligned_mask = (label == bias_attr).cpu()
-                skewed_mask = (label != bias_attr).cpu()
-                # check biased model's performance
-                
-                print('*** loss_aligned: ', loss_b[aligned_mask].mean())
-                print('*** loss_skewed: ', loss_b[skewed_mask].mean())
-                
-                # check if biased model is biased
-                if aligned_mask.any().item():
-                    writer.add_scalar("loss_client_1/b_train_aligned", loss_b[aligned_mask].mean(), local_epochs*epochs+step)
-
-                if skewed_mask.any().item():
-                    writer.add_scalar("loss_client_1/b_train_skewed", loss_b[skewed_mask].mean(), local_epochs*epochs+step)
-
-                # writer.add_scalar("loss_client_1/b_train_val", loss_per_sample_b.mean(), local_epochs*epochs+step)
-                writer.add_scalar("loss_client_1/b_train_val", loss_b.mean(), local_epochs*epochs+step)
-                writer.add_scalar("loss_client_1/b_train_gce", loss_b_update.mean(), local_epochs*epochs+step)
                 writer.add_image('adv images', data_adv[0], local_epochs*epochs+step)
                 writer.add_image('ori images', data[0], local_epochs*epochs+step)
 
-                #check Disparate Impact on biased model
-                '''
-                disparate_impact_arr = []
-                for i in range(10):
-                    disparate_impact = disparate_impact_helper(i, model_b, valid_loader)
-                    
-                    if not math.isnan(disparate_impact):
-                        disparate_impact_arr.append(disparate_impact)
-                        writer.add_scalar('disparate_impact on local biased model/' + str(i), disparate_impact, local_epochs*epochs+step)   
-                writer.add_scalar('disparate_impact_mean on local biased model/', np.mean(np.array(disparate_impact_arr)), local_epochs*epochs+step)   
-                '''
+
+            bias_attr = attr[:, bias_attr_idx]
+
+            aligned_mask = (label == bias_attr).cpu()
+            skewed_mask = (label != bias_attr).cpu()
+            # check biased model's performance
+            
+            # print('*** loss_aligned: ', loss_b[aligned_mask].mean())
+            # print('*** loss_skewed: ', loss_b[skewed_mask].mean())
+            
+            # check if biased model is biased
+            if aligned_mask.any().item():
+                writer.add_scalar(f"loss_client_{client}/b_train_aligned", loss_b[aligned_mask].mean(), local_epochs*epochs+step)
+
+            if skewed_mask.any().item():
+                writer.add_scalar(f"loss_client_{client}/b_train_skewed", loss_b[skewed_mask].mean(), local_epochs*epochs+step)
+
+            # writer.add_scalar("loss_client_1/b_train_val", loss_per_sample_b.mean(), local_epochs*epochs+step)
+            writer.add_scalar(f"loss_client_{client}/b_train_val", loss_b.mean(), local_epochs*epochs+step)
+            writer.add_scalar(f"loss_client_{client}/b_train_gce", loss_b_update.mean(), local_epochs*epochs+step)
+
+            accuracy = torch.mean(evaluate(model_d, valid_loader_list[client]))
+            writer.add_scalar(f"accuracy_client_{client}_local_debiased_model", accuracy, local_epochs*epoch+step)
+
+                
 
             # if epochs > 120:
             #     model_b.eval()
@@ -548,7 +552,6 @@ def train(
     
         # return model_b.state_dict(), model_d.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
-    
         return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss), sum(batch_loss_ori) / len(batch_loss_ori), sum(batch_loss_adv) / len(batch_loss_adv)
     
 
@@ -633,7 +636,7 @@ def train(
         model_global.train()
         # m = max(int(frac * num_users), 1)
         # idxs_users = np.random.choice(range(num_users), m, replace=False)
-        idxs_users = [i for i in range(4)]
+        idxs_users = [i for i in range(10)]
 
         for idx in idxs_users:
             try:
@@ -646,7 +649,7 @@ def train(
 
             model_d = copy.deepcopy(model_global)
 
-            w_b, w_d, loss, loss_from_ori, loss_from_adv = update_weights(model_b, model_d, idx, epoch, local_epochs=5)
+            w_b, w_d, loss, loss_from_ori, loss_from_adv = update_weights(model_b, model_d, idx, epoch)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
             local_loss_ori.append(copy.deepcopy(loss_from_ori))
