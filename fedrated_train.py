@@ -172,9 +172,7 @@ def train(
     start_time = datetime.now()
     writer = SummaryWriter(os.path.join(log_dir, "summary", main_tag))
 
-    
 
-    # Set optimizer for the local updates
     
     train_dataset = get_dataset(
             dataset_tag,
@@ -188,8 +186,7 @@ def train(
                          'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
                          'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4',
                          'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.05-Severity4']
-    # data_dir = os.path.join(log_dir, '/datasets/debias')
-    
+   
     
     
     train_loader_list = []
@@ -218,7 +215,7 @@ def train(
         # make loader    
         train_loader = DataLoader(
             train_dataset,
-            batch_size=3000,
+            batch_size=512,
             shuffle=True,
             num_workers=0,
             pin_memory=True,
@@ -350,7 +347,7 @@ def train(
     model_biased = get_model(model_tag, num_classes).to(device)
 
     # Training
-    def update_weights(model_b, model_d, client, epochs, local_epochs=30):
+    def update_weights(model_b, model_d, client, epochs, local_epochs=10):
         # Set mode to train model
         model_b.train()
         model_d.train()
@@ -443,11 +440,11 @@ def train(
             # data_adv = pgd_attack_both_adv(device, model_global, model_b, model_global, data, label)
     
 
-            count = [0 for i in range(10)]
-            for j in range(512):
-                count[label[j]] += 1
+            # count = [0 for i in range(10)]
+            # for j in range(512):
+            #     count[label[j]] += 1
 
-            print(f'client[{client}] images label: ', count)
+            # print(f'client[{client}] images label: ', count)
 
             
             

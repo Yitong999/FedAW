@@ -56,7 +56,6 @@ def train(
     start_time = datetime.now()
     writer = SummaryWriter(os.path.join(log_dir, "summary", main_tag))
 
-    # train_dataset = train_dataset_list[1]
     train_dataset = get_dataset(
             dataset_tag,
             data_dir=data_dir,
@@ -64,66 +63,64 @@ def train(
             transform_split="train",
         )
     
-    num_users = 10
-    frac = 1
-
-    user_groups = iid(train_dataset, num_users)
-    # print(user_groups)
-    train_dataset_list = [
-        DatasetSplit(train_dataset, user_groups[i])
-        for i in range(10)]
+    data_set_tag_list = ['ColoredMNIST-Skewed0.001-Severity3', 'ColoredMNIST-Skewed0.001-Severity4', 
+                         'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
+                         'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
+                         'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4',
+                         'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.05-Severity4']
+   
     
     
-    
-    valid_dataset = get_dataset(
-        dataset_tag,
-        data_dir=data_dir,
-        dataset_split="eval",
-        transform_split="eval",
-    )
+    train_loader_list = []
+    valid_loader_list = []
 
-    train_target_attr = train_dataset.attr[:, target_attr_idx]
-    train_bias_attr = train_dataset.attr[:, bias_attr_idx]
+    for tag in data_set_tag_list:
+        print('tag in each: ', tag)
+        print('data_dir: ', data_dir)
+        train_dataset = get_dataset(
+            dataset_tag = tag,
+            data_dir=data_dir,
+            dataset_split="train",
+            transform_split="train",
+        )
 
-    attr_dims = []
-    # attr_dims.append(torch.max(train_target_attr).item() + 1)
-    # attr_dims.append(torch.max(train_bias_attr).item() + 1)
+        valid_dataset = get_dataset(
+                dataset_tag = tag,
+                data_dir=data_dir,
+                dataset_split="eval",
+                transform_split="eval",
+            )
 
-    attr_dims.append(torch.max(train_target_attr).item() + 1)
-    attr_dims.append(torch.max(train_bias_attr).item() + 1)
+        train_dataset = IdxDataset(train_dataset)
+        valid_dataset = IdxDataset(valid_dataset)  
+
+        # make loader    
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=512,
+            shuffle=True,
+            num_workers=0,
+            pin_memory=True,
+        )
+
+        valid_loader = DataLoader(
+            valid_dataset,
+            batch_size=1000,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=True,
+        )
+
+        train_loader_list.append(train_loader)
+        valid_loader_list.append(valid_loader)
+
+    attr_dims = [10, 10]
 
     num_classes = attr_dims[0]
 
     
-    
     valid_dataset = IdxDataset(valid_dataset)
     
-    
-    train_loader_list = [
-        DataLoader(
-            train_dataset_list[i],
-            batch_size=main_batch_size,
-            shuffle=True,
-            num_workers=0,
-            pin_memory=True,
-        ) 
-    for i in range(10)]
-    
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=main_batch_size,
-        shuffle=True,
-        num_workers=0,
-        pin_memory=True,
-    )
-
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=1000,
-        shuffle=False,
-        num_workers=0,
-        pin_memory=True,
-    )
 
     # define model and optimizer
     model_global = get_model(model_tag, attr_dims[0]).to(device)
@@ -134,7 +131,7 @@ def train(
 
     
     # Training
-    def update_weights(model, client, epoch, local_epochs=5):
+    def update_weights(model, client, epoch, local_epochs=10):
         # Set mode to train model
         model.train()
         
@@ -196,14 +193,12 @@ def train(
             attr = attr.to(device)
             label = attr[:, target_attr_idx]
             
-            if client == 1:
-                count = [0 for i in range(10)]
-                for j in range(256):
-                    count[label[j]] += 1
+            
+            accuracy = torch.mean(evaluate(model, valid_loader_list[client]))
+            writer.add_scalar(f"accuracy_of_local_model_on_{client}", accuracy, local_epochs*epoch+step)
 
-                print('client[1] images class: ', count)
 
-                writer.add_image('ori images', data[0], local_epochs*epoch+step)
+
 
             logit = model(data)
             loss_per_sample = criterion(logit.squeeze(1), label)
