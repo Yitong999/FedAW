@@ -309,8 +309,8 @@ def train(
 
         model_global.train()
         m = max(int(frac * num_users), 1)
-        idxs_users = np.random.choice(range(num_users), m, replace=False)
-
+        # idxs_users = np.random.choice(range(num_users), m, replace=False)
+        idxs_users = [i for i in range(10)]
         
 
         for idx in idxs_users:
@@ -337,7 +337,7 @@ def train(
         # model_global.eval()
         # evaluate(model_global, valid_loader)
         # -- --
-        main_log_freq = 10
+        main_log_freq = 1
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 

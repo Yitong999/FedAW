@@ -32,120 +32,6 @@ torch.manual_seed(seed)
 np.random.seed(seed)
 random.seed(seed)
 
-# BiasAdv
-def pgd_attack_adv(device, model_b, model_d, images, labels, eps=0.4, alpha=4/255, lmd = 2, iters=40) :
-    images = images.to(device)
-    labels = labels.to(device)
-
-    loss = nn.CrossEntropyLoss(reduction='none')
-        
-    ori_images = images.data
-        
-    for i in range(iters) :    
-        images.requires_grad = True
-        outputs_b = model_b(images)
-        outputs_d = model_d(images)
-
-        model_b.zero_grad()
-        model_d.zero_grad()
-        
-        cost_b = loss(outputs_b, labels).to(device)
-        cost_d = loss(outputs_d, labels).to(device)
-        
-        cost = (cost_b - lmd * cost_d).mean()
-        
-        cost.backward()
-
-        adv_images = images + alpha*images.grad.sign()
-
-        eta = torch.clamp(adv_images - ori_images, min=-eps, max=eps)
-        images = torch.clamp(ori_images + eta, min=0, max=1).detach_()
-            
-    
-    mode = 3
-    
-    if mode == 0:
-        print('###################')
-        print('label: ', labels)
-        print('ori predicted by biased model: ', model_b(ori_images))
-        print('ori predicted by debiased model: ', model_d(ori_images))
-        print('adv predicted by biased model: ', model_b(images))
-        print('adv predicted by debiased model: ', model_d(images))
-    elif mode == 1:
-        print('###################')
-        print('label: ', labels)
-        print('ori predicted by biased model: ', torch.argmax(model_b(ori_images), dim=1))
-        print('ori predicted by debiased model: ', torch.argmax(model_d(ori_images), dim=1))
-        print('adv predicted by biased model: ', torch.argmax(model_b(images), dim=1))
-        print('adv predicted by debiased model: ', torch.argmax(model_d(images), dim=1))
-    else:
-        return images
-    
-        
-    return images
-
-def pgd_attack_both_adv(device, model_global, model_b, model_d, images, labels, eps=0.4, alpha=4/255, lmd = 1, iters=40) :
-    images = images.to(device)
-    labels = labels.to(device)
-
-    loss = nn.CrossEntropyLoss(reduction='none')
-        
-    ori_images = images.data
-        
-    for i in range(iters) :    
-        images.requires_grad = True
-        outputs_b = model_b(images)
-        outputs_d = model_d(images)
-        outputs_global = model_global(images)
-        # outputs1 = model(images)
-        # output2
-        model_b.zero_grad()
-        model_d.zero_grad()
-        model_global.zero_grad()
-        
-        # print('###shape output###: ', outputs_b.shape)
-        # print('###shape labels###: ', labels.shape)
-        cost_b = loss(outputs_b, labels).to(device)
-        
-
-        cost_d = loss(outputs_d, labels).to(device)
-        
-        cost_global = loss(outputs_global, labels).to(device)
-
-        cost = (cost_b - lmd * cost_global - lmd * cost_d).mean()
-#         cost = (cost_b - lmd * cost_d).mean()
-        
-        
-        cost.backward()
-
-        adv_images = images + alpha*images.grad.sign()
-#         adv_images = images
-        
-        eta = torch.clamp(adv_images - ori_images, min=-eps, max=eps)
-        images = torch.clamp(ori_images + eta, min=0, max=1).detach_()
-            
-    
-    mode = 3
-    
-    if mode == 0:
-        print('###################')
-        print('label: ', labels)
-        print('ori predicted by biased model: ', model_b(ori_images))
-        print('ori predicted by debiased model: ', model_d(ori_images))
-        print('adv predicted by biased model: ', model_b(images))
-        print('adv predicted by debiased model: ', model_d(images))
-    elif mode == 1:
-        print('###################')
-        print('label: ', labels)
-        print('ori predicted by biased model: ', torch.argmax(model_b(ori_images), dim=1))
-        print('ori predicted by debiased model: ', torch.argmax(model_d(ori_images), dim=1))
-        print('adv predicted by biased model: ', torch.argmax(model_b(images), dim=1))
-        print('adv predicted by debiased model: ', torch.argmax(model_d(images), dim=1))
-    else:
-        return images
-    
-        
-    return images
 
 
 @ex.automain
@@ -233,111 +119,6 @@ def train(
         valid_loader_list.append(valid_loader)
 
 
-        # check
-        # train_iter = iter(train_loader)
-        # index, data, attr = next(train_iter)
-
-        # print(index.shape, data.shape, attr.shape)
-
-        # data = data.to(device)
-        # attr = attr.to(device)
-        # label = attr[:, target_attr_idx]
-        # color = attr[:, bias_attr_idx]
-        
-        # # Count the number of elements with label == color
-        # check = torch.sum(label == color).item()
-
-        # print(f'[check in inilialization]number of bias aligned samples: {check}')
-        # print(f'[check in initialization]number of bias conflicting samples: {len(label) - check}')
-
-    '''
-     # train_dataset = train_dataset_list[1]
-    train_dataset = get_dataset(
-            dataset_tag,
-            data_dir=data_dir,
-            dataset_split="train",
-            transform_split="train",
-        )
-    
-    num_users = 10
-    frac = 1
-
-    user_groups = iid(train_dataset, num_users)
-    # print('user_groups: ', user_groups)
-    train_dataset_list = [
-        DatasetSplit(train_dataset, user_groups[i])
-        for i in range(10)]
-    
-    
-    
-    valid_dataset = get_dataset(
-        dataset_tag,
-        data_dir=data_dir,
-        dataset_split="eval",
-        transform_split="eval",
-    )
-
-    
-    # print('user_groups: ', user_groups)
-
-    train_target_attr = train_dataset.attr[:, target_attr_idx]
-    train_bias_attr = train_dataset.attr[:, bias_attr_idx]
-
-    attr_dims = []
-
-    attr_dims.append(torch.max(train_target_attr).item() + 1)
-    attr_dims.append(torch.max(train_bias_attr).item() + 1)
-
-    num_classes = attr_dims[0]
-
-    # train_dataset = IdxDataset(train_dataset)
-
-    # for i in range(10):
-    #     # train_dataset_list[i] = DatasetSplit(train_dataset, user_groups[i])
-    #     train_dataset_list[i] = DatasetSplit(train_dataset)
-    
-    valid_dataset = IdxDataset(valid_dataset)
-    
-# make loader
-    train_loader_list = [
-        DataLoader(
-            train_dataset_list[i],
-            batch_size=main_batch_size,
-            shuffle=True,
-            num_workers=0,
-            pin_memory=True,
-        ) 
-    for i in range(10)]
-
-    train_loader = DataLoader(
-        train_dataset,
-        # train_dataset_list[0],
-        batch_size=main_batch_size,
-        shuffle=True,
-        num_workers=0,
-        pin_memory=True,
-    )
-
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=1000,
-        shuffle=True,
-        num_workers=0,
-        pin_memory=True,
-    )
-
-    
-    
-    '''
-#     train_target_attr = train_dataset.attr[:, target_attr_idx]
-#     train_bias_attr = train_dataset.attr[:, bias_attr_idx]
-
-#     attr_dims = []
-
-#     attr_dims.append(torch.max(train_target_attr).item() + 1)
-#     attr_dims.append(torch.max(train_bias_attr).item() + 1)
-
-
     attr_dims = [10, 10]
     num_classes = attr_dims[0]
 
@@ -407,8 +188,6 @@ def train(
 
         for step in tqdm(range(local_epochs)):
             batch_loss = []
-            batch_loss_ori = []
-            batch_loss_adv = []
 
             # train main model
             try:
@@ -427,24 +206,8 @@ def train(
             label = attr[:, target_attr_idx]
             color = attr[:, bias_attr_idx]
             
-            # Count the number of elements with label == color
+
             
-            # check = torch.sum(label == color).item()
-
-            # print(f'number of bias aligned samples: {check}')
-            # print(f'number of bias conflicting samples: {len(label) - check}')
-            
-
-            #hacked verison
-            data_adv = pgd_attack_adv(device, model_b, model_d, data, label)
-            # data_adv = pgd_attack_both_adv(device, model_global, model_b, model_global, data, label)
-    
-
-            # count = [0 for i in range(10)]
-            # for j in range(512):
-            #     count[label[j]] += 1
-
-            # print(f'client[{client}] images label: ', count)
 
             
             
@@ -453,7 +216,6 @@ def train(
                 print(logit_b)
                 raise NameError('logit_b')
             logit_d = model_d(data)
-            logit_d_adv = model_d(data_adv) 
             
             loss_b = criterion(logit_b, label).cpu().detach()
             loss_d = criterion(logit_d, label).cpu().detach()
@@ -468,9 +230,7 @@ def train(
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
 
-            beta = 0.4
-                
-            loss_weight_adv = beta * (1 - loss_weight)
+
             
             if np.isnan(loss_weight.mean().item()):
                 print('loss_weight mean: ', loss_weight.mean())
@@ -485,29 +245,19 @@ def train(
             if np.isnan(loss_b_update.mean().item()):
                 raise NameError('loss_b_update')
 
-            loss_d_from_ori = criterion(logit_d, label)
-            loss_d_from_adv = criterion(logit_d_adv, label)
-            loss_d_update = loss_d_from_ori.to(device) * loss_weight.to(device) + loss_d_from_adv.to(device) * loss_weight_adv.to(device) #hacked version
+
+            loss_d_update = criterion(logit_d, label) * loss_weight.to(device)
 
             if np.isnan(loss_d_update.mean().item()):
                 raise NameError('loss_d_update')
             loss = loss_b_update.mean() + loss_d_update.mean()
-#             loss = loss_d_update.mean()
-
-            # for a easier look up, we only check for client 1
-            if client == 1:
-                writer.add_image('adv images', data_adv[0], local_epochs*epochs+step)
-                writer.add_image('ori images', data[0], local_epochs*epochs+step)
 
 
             bias_attr = attr[:, bias_attr_idx]
 
             aligned_mask = (label == bias_attr).cpu()
             skewed_mask = (label != bias_attr).cpu()
-            # check biased model's performance
-            
-            # print('*** loss_aligned: ', loss_b[aligned_mask].mean())
-            # print('*** loss_skewed: ', loss_b[skewed_mask].mean())
+
             
             # check if biased model is biased
             if aligned_mask.any().item():
@@ -523,10 +273,6 @@ def train(
             accuracy = torch.mean(evaluate(model_d, valid_loader_list[client]))
             writer.add_scalar(f"accuracy_client_{client}_local_debiased_model", accuracy, local_epochs*epoch+step)
 
-                
-
-            # if epochs > 120:
-            #     model_b.eval()
 
             optimizer_b.zero_grad()
             optimizer_d.zero_grad()
@@ -541,15 +287,13 @@ def train(
 
 #             batch_loss.append(loss.item())
             batch_loss.append(loss_d_update.nanmean().item())
-            batch_loss_ori.append(loss_d_from_ori.nanmean().item())
-            batch_loss_adv.append(loss_d_from_adv.nanmean().item())
         #------ finish updating a client's local model -------
 
         # epoch_loss.append(sum(batch_loss)/len(batch_loss))
     
         # return model_b.state_dict(), model_d.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
-        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss), sum(batch_loss_ori) / len(batch_loss_ori), sum(batch_loss_adv) / len(batch_loss_adv)
+        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss)
     
 
     def evaluate(model, data_loader):
@@ -646,11 +390,9 @@ def train(
 
             model_d = copy.deepcopy(model_global)
 
-            w_b, w_d, loss, loss_from_ori, loss_from_adv = update_weights(model_b, model_d, idx, epoch)
+            w_b, w_d, loss = update_weights(model_b, model_d, idx, epoch)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
-            local_loss_ori.append(copy.deepcopy(loss_from_ori))
-            local_loss_adv.append(copy.deepcopy(loss_from_adv))
 
             # update local biased model weights
             model_b_arr[idx].load_state_dict(w_b)
@@ -663,23 +405,18 @@ def train(
         model_global.load_state_dict(global_weights)
 
         loss_avg = sum(local_losses) / len(local_losses)
-        loss_avg_from_ori = sum(local_loss_ori) / len(local_loss_ori)
-        loss_avg_from_adv = sum(local_loss_adv) / len(local_loss_adv)
 
 
 
         # Calculate avg training accuracy over all users at every epoch
-        
-        # model_global.eval()
-        # evaluate(model_global, valid_loader)
+
         # -- --
         main_log_freq = 1
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 
-            writer.add_scalar("loss_avg/two_term", loss_avg, epoch)
-            writer.add_scalar("loss_avg/ori", loss_avg_from_ori, epoch)
-            writer.add_scalar("loss_avg/adv", loss_avg_from_adv, epoch)
+            writer.add_scalar("loss_avg", loss_avg, epoch)
+
             writer.add_scalar("acc", torch.mean(evaluate(model_global, valid_loader)), epoch)
             
             print('loss: ', loss_avg)
