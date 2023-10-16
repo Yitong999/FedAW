@@ -61,7 +61,7 @@ def pgd_attack_adv(device, model_b, model_d, images, labels, eps=0.4, alpha=4/25
         eta = torch.clamp(adv_images - ori_images, min=-eps, max=eps)
         images = torch.clamp(ori_images + eta, min=0, max=1).detach_()
             
-    
+    # debug mode
     mode = 3
     
     if mode == 0:

@@ -50,8 +50,8 @@ def server_user():
     # log_dir = "/home/user/workspace/debias/log"
     # data_dir = "/home/user/datasets/debias"
 
-    log_dir = "/root/autodl-tmp/LfF/workspace/debias/log"
-    data_dir = "/root/autodl-tmp/LfF/datasets/debias"
+    log_dir = "/root/autodl-tmp/BiasAdv-New/workspace/debias/log"
+    data_dir = "/root/autodl-tmp/BiasAdv-New/datasets/debias"
 
 # Dataset Configuration
 

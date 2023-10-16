@@ -176,8 +176,52 @@ def train(
 
     # Set optimizer for the local updates
     
-    
-    # train_dataset = train_dataset_list[1]
+   
+    data_set_tag_list = ['ColoredMNIST-Skewed0.01-Severity3', 'ColoredMNIST-Skewed0.02-Severity3', 'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.005-Severity3']
+    data_dir = os.path.join(os.getcwd(), '/datasets/debias')
+
+    train_loader_list = []
+    valid_loader_list = []
+
+    for tag in data_set_tag_list:
+        train_dataset = get_dataset(
+            dataset_tag,
+            data_dir=data_dir,
+            dataset_split="train",
+            transform_split="train",
+        )
+
+        valid_dataset = get_dataset(
+                dataset_tag,
+                data_dir=data_dir,
+                dataset_split="eval",
+                transform_split="eval",
+            )
+
+        train_dataset = IdxDataset(train_dataset)
+        valid_dataset = IdxDataset(valid_dataset)  
+
+        # make loader    
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=256,
+            shuffle=True,
+            num_workers=0,
+            pin_memory=True,
+        )
+
+        valid_loader = DataLoader(
+            valid_dataset,
+            batch_size=1000,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=True,
+        )
+
+        train_loader_list.append(train_loader)
+        valid_loader_list.append(valid_loader)
+    '''
+     # train_dataset = train_dataset_list[1]
     train_dataset = get_dataset(
             dataset_tag,
             data_dir=data_dir,
@@ -252,12 +296,23 @@ def train(
         pin_memory=True,
     )
 
-    model_global = get_model(model_tag, attr_dims[0]).to(device)
+    
+    
+    '''
+    train_target_attr = train_dataset.attr[:, target_attr_idx]
+    train_bias_attr = train_dataset.attr[:, bias_attr_idx]
+
+    attr_dims = []
+
+    attr_dims.append(torch.max(train_target_attr).item() + 1)
+    attr_dims.append(torch.max(train_bias_attr).item() + 1)
+
+    num_classes = attr_dims[0]
+
+    model_global = get_model(model_tag, num_classes).to(device)
     # model_global_initial = get_model(model_tag, attr_dims[0]).to(device)
 
-    model_biased = get_model("SmallCNN", attr_dims[0]).to(device)
-
-
+    model_biased = get_model(model_tag, num_classes).to(device)
 
     # Training
     def update_weights(model_b, model_d, client, epochs, local_epochs=5):
@@ -341,7 +396,7 @@ def train(
             color = attr[:, bias_attr_idx]
             
             #hacked verison
-            data_adv = pgd_attack_adv(device, model_b, model_global, data, label)
+            data_adv = pgd_attack_adv(device, model_b, model_d, data, label)
             # data_adv = pgd_attack_both_adv(device, model_global, model_b, model_global, data, label)
     
 
@@ -444,6 +499,7 @@ def train(
                 print('*** loss_aligned: ', loss_b[aligned_mask].mean())
                 print('*** loss_skewed: ', loss_b[skewed_mask].mean())
                 
+                # check if biased model is biased
                 if aligned_mask.any().item():
                     writer.add_scalar("loss_client_1/b_train_aligned", loss_b[aligned_mask].mean(), local_epochs*epochs+step)
 
@@ -575,9 +631,9 @@ def train(
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         model_global.train()
-        m = max(int(frac * num_users), 1)
+        # m = max(int(frac * num_users), 1)
         # idxs_users = np.random.choice(range(num_users), m, replace=False)
-        idxs_users = [i for i in range(10)]
+        idxs_users = [i for i in range(4)]
 
         for idx in idxs_users:
             try:
