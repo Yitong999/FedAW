@@ -185,8 +185,8 @@ def train(
     
     data_set_tag_list = ['ColoredMNIST-Skewed0.001-Severity3', 'ColoredMNIST-Skewed0.001-Severity4', 
                          'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
-                         'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4'
-                         'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4'
+                         'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
+                         'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4',
                          'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.05-Severity4']
     # data_dir = os.path.join(log_dir, '/datasets/debias')
     
