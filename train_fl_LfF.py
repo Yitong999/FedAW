@@ -19,7 +19,7 @@ with warnings.catch_warnings():
     from torch.utils.tensorboard import SummaryWriter
 
 from config import ex
-from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit
+from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit, FedFairAvg
 from module.loss import GeneralizedCELoss
 from module.util import get_model
 from util import MultiDimAverageMeter, EMA
@@ -185,7 +185,7 @@ def train(
         # sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         # sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         
-
+        score = 0 # score for weight
         for step in tqdm(range(local_epochs)):
             batch_loss = []
 
@@ -229,7 +229,7 @@ def train(
             loss_per_sample_d = loss_d
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
-
+            score += loss_weight # assign value as score metrics
 
             
             if np.isnan(loss_weight.mean().item()):
@@ -293,7 +293,7 @@ def train(
     
         # return model_b.state_dict(), model_d.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
-        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss)
+        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss), score
     
 
     def evaluate(model, data_loader):
@@ -371,7 +371,7 @@ def train(
     
     model_b_arr = {}
     for epoch in tqdm(range(global_epochs)):
-        local_weights, local_losses, local_loss_ori, local_loss_adv = [], [], [], []
+        local_weights, local_losses, scores, local_loss_ori, local_loss_adv = [], [], [], [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         model_global.train()
@@ -390,16 +390,17 @@ def train(
 
             model_d = copy.deepcopy(model_global)
 
-            w_b, w_d, loss = update_weights(model_b, model_d, idx, epoch)
+            w_b, w_d, loss, score = update_weights(model_b, model_d, idx, epoch)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
-
+            scores.append(score)
             # update local biased model weights
             model_b_arr[idx].load_state_dict(w_b)
             
 
         # update global weights
-        global_weights = average_weights(local_weights)
+        # global_weights = average_weights(local_weights)
+        global_weights = FedFairAvg(local_weights, scores)
 
         # update global weights
         model_global.load_state_dict(global_weights)

@@ -317,7 +317,7 @@ def train(
             
             model_d = copy.deepcopy(model_global)
 
-            w_d, loss = update_weights(model_d, idx, epoch, local_epochs=5)
+            w_d, loss = update_weights(model_d, idx, epoch, local_epochs=10)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
 
