@@ -148,7 +148,7 @@ def make_colored_mnist(data_dir, skewed_ratio, severity):
 @ex.automain
 def make(make_target):
 
-    for skewed_ratio in [1e-2, 6e-3, 3e-3, 1e-3, 6e-4]:
+    for skewed_ratio in [5e-2, 2e-2, 1e-2, 5e-3]:
 
         for severity in [1, 2, 3, 4]:
             if make_target == "colored_mnist":
