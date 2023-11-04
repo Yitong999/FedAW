@@ -67,6 +67,13 @@ def train(
             transform_split="train",
         )
     
+    train_target_attr = train_dataset.attr[:, target_attr_idx]
+    train_bias_attr = train_dataset.attr[:, bias_attr_idx]
+    attr_dims = []
+    attr_dims.append(torch.max(train_target_attr).item() + 1)
+    attr_dims.append(torch.max(train_bias_attr).item() + 1)
+    num_classes = attr_dims[0]
+
     data_set_tag_list = ['ColoredMNIST-Skewed0.005-Severity1', 'ColoredMNIST-Skewed0.005-Severity2', 
                          'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
                          'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
@@ -182,8 +189,8 @@ def train(
         bias_criterion = GeneralizedCELoss() #hacked
 
         
-        # sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
-        # sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
+        sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
+        sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         
         score = 0 # score for weight
         for step in tqdm(range(local_epochs)):
@@ -228,9 +235,17 @@ def train(
             loss_per_sample_b = loss_b
             loss_per_sample_d = loss_d
 
+            # EMA sample loss
+            sample_loss_ema_b.update(loss_b, index)
+            sample_loss_ema_d.update(loss_d, index)
+
+            # class-wise normalize
+            loss_b = sample_loss_ema_b.parameter[index].clone().detach()
+            loss_d = sample_loss_ema_d.parameter[index].clone().detach()
+
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
             score += loss_weight.mean().item() # assign value as score metrics
-
+            print('score: ', score)
             
             if np.isnan(loss_weight.mean().item()):
                 print('loss_weight mean: ', loss_weight.mean())
@@ -261,13 +276,13 @@ def train(
             
             # check if biased model is biased
             if aligned_mask.any().item():
-                writer.add_scalar(f"loss_client_{client}/b_train_aligned", loss_b[aligned_mask].mean(), local_epochs*epochs+step)
+                writer.add_scalar(f"loss_client_{client}/b_train_aligned", loss_per_sample_b[aligned_mask].mean(), local_epochs*epochs+step)
 
             if skewed_mask.any().item():
-                writer.add_scalar(f"loss_client_{client}/b_train_skewed", loss_b[skewed_mask].mean(), local_epochs*epochs+step)
+                writer.add_scalar(f"loss_client_{client}/b_train_skewed", loss_per_sample_b[skewed_mask].mean(), local_epochs*epochs+step)
 
             # writer.add_scalar("loss_client_1/b_train_val", loss_per_sample_b.mean(), local_epochs*epochs+step)
-            writer.add_scalar(f"loss_client_{client}/b_train_ce", loss_b.mean(), local_epochs*epochs+step)
+            writer.add_scalar(f"loss_client_{client}/b_train_ce", loss_per_sample_b.mean(), local_epochs*epochs+step)
             writer.add_scalar(f"loss_client_{client}/b_train_gce", loss_b_update.mean(), local_epochs*epochs+step)
 
             accuracy = torch.mean(evaluate(model_d, valid_loader_list[client]))
