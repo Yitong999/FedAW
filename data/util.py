@@ -161,10 +161,9 @@ def FedFairAvg(w, scores):
     """
     
     # method 1: reweight based on scores
-    sum = 0
-    for each in scores:
-        sum += each
+    sum = torch.sum(scores, dim=0)
     scores /= sum
+    print('scores shape in FedAVG: ', scores.shape)
 
     #method 2: reweight based on softmax of scores
     # scores = F.softmax(torch.FloatTensor(scores))
