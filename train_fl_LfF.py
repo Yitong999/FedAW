@@ -245,6 +245,7 @@ def train(
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
             score += loss_weight.mean().item() # assign value as score metrics
+            print('loss_weight shape: ', loss_weight.shape)
             print('score: ', score)
             
             if np.isnan(loss_weight.mean().item()):

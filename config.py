@@ -34,9 +34,9 @@ def get_config():
     main_valid_freq = None
     epochs = None
     
-    main_batch_size = 512
+    main_batch_size = 256
     main_optimizer_tag = 'Adam'
-    main_learning_rate = 5e-3
+    main_learning_rate = 1e-2
     main_weight_decay = 0.0
     
     main_save_logits = False
@@ -50,8 +50,8 @@ def server_user():
     # log_dir = "/home/user/workspace/debias/log"
     # data_dir = "/home/user/datasets/debias"
 
-    log_dir = "/root/autodl-tmp/LfF_Nov/workspace/debias/log"
-    data_dir = "/root/autodl-tmp/LfF_Nov/datasets/debias"
+    log_dir = "/root/autodl-tmp/LfF/workspace/debias/log"
+    data_dir = "/root/autodl-tmp/LfF/datasets/debias"
 
 # Dataset Configuration
 
