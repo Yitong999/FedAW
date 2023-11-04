@@ -108,7 +108,7 @@ def train(
         # make loader    
         train_loader = DataLoader(
             train_dataset,
-            batch_size=512,
+            batch_size=256,
             shuffle=True,
             num_workers=0,
             pin_memory=True,
@@ -242,6 +242,20 @@ def train(
             # class-wise normalize
             loss_b = sample_loss_ema_b.parameter[index].clone().detach()
             loss_d = sample_loss_ema_d.parameter[index].clone().detach()
+
+            if np.isnan(loss_b.mean().item()):
+                raise NameError('loss_b_ema')
+            if np.isnan(loss_d.mean().item()):
+                raise NameError('loss_d_ema')
+            
+            label_cpu = label.cpu()
+            
+            for c in range(num_classes):
+                class_index = np.where(label_cpu == c)[0]
+                max_loss_b = sample_loss_ema_b.max_loss(c)
+                max_loss_d = sample_loss_ema_d.max_loss(c)
+                loss_b[class_index] /= max_loss_b
+                loss_d[class_index] /= max_loss_d
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
             score += loss_weight.mean().item() # assign value as score metrics
