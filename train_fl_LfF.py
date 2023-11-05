@@ -258,11 +258,12 @@ def train(
                 loss_b[class_index] /= max_loss_b
                 loss_d[class_index] /= max_loss_d
             '''
-            
+
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
             score += loss_weight.mean().item() # assign value as score metrics
-            print('loss_weight shape: ', loss_weight.shape)
-            print('score: ', score)
+            
+            if step == 9:
+                print('score: ', score)
             
             if np.isnan(loss_weight.mean().item()):
                 print('loss_weight mean: ', loss_weight.mean())
