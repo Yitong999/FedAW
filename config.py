@@ -58,7 +58,7 @@ def server_user():
 @ex.named_config
 def colored_mnist(log_dir):
     dataset_tag = "ColoredMNIST"
-    model_tag = "CNN"
+    model_tag = "MLP"
     main_num_steps = 3000
     target_attr_idx = 0
     bias_attr_idx = 1
