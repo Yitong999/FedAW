@@ -19,7 +19,7 @@ with warnings.catch_warnings():
     from torch.utils.tensorboard import SummaryWriter
 
 from config import ex
-from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit
+from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit, FedWt_v1, FedWt_v2
 from module.loss import GeneralizedCELoss
 from module.util import get_model
 from util import MultiDimAverageMeter, EMA
@@ -215,7 +215,7 @@ def train(
         # make loader    
         train_loader = DataLoader(
             train_dataset,
-            batch_size=512,
+            batch_size=256,
             shuffle=True,
             num_workers=0,
             pin_memory=True,
@@ -404,11 +404,12 @@ def train(
         # sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         # sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         
-
+        score = 0
         for step in tqdm(range(local_epochs)):
             batch_loss = []
             batch_loss_ori = []
             batch_loss_adv = []
+            
 
             # train main model
             try:
@@ -467,6 +468,10 @@ def train(
             loss_per_sample_d = loss_d
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
+            score += loss_weight.mean().item()
+
+            if step == 9:
+                print('score: ', score)
 
             beta = 0.4
                 
@@ -549,7 +554,7 @@ def train(
     
         # return model_b.state_dict(), model_d.state_dict(), sum(epoch_loss) / len(epoch_loss)
 
-        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss), sum(batch_loss_ori) / len(batch_loss_ori), sum(batch_loss_adv) / len(batch_loss_adv)
+        return model_b.state_dict(), model_d.state_dict(), sum(batch_loss) / len(batch_loss), sum(batch_loss_ori) / len(batch_loss_ori), sum(batch_loss_adv) / len(batch_loss_adv), score
     
 
     def evaluate(model, data_loader):
@@ -627,7 +632,7 @@ def train(
     
     model_b_arr = {}
     for epoch in tqdm(range(global_epochs)):
-        local_weights, local_losses, local_loss_ori, local_loss_adv = [], [], [], []
+        local_weights, local_losses, local_loss_ori, local_loss_adv, scores = [], [], [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         model_global.train()
@@ -646,19 +651,19 @@ def train(
 
             model_d = copy.deepcopy(model_global)
 
-            w_b, w_d, loss, loss_from_ori, loss_from_adv = update_weights(model_b, model_d, idx, epoch)
+            w_b, w_d, loss, loss_from_ori, loss_from_adv, score = update_weights(model_b, model_d, idx, epoch)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
             local_loss_ori.append(copy.deepcopy(loss_from_ori))
             local_loss_adv.append(copy.deepcopy(loss_from_adv))
-
+            scores.append(score)
             # update local biased model weights
             model_b_arr[idx].load_state_dict(w_b)
             
 
         # update global weights
         global_weights = average_weights(local_weights)
-
+        # global_weights = FedWt_v1(local_weights)
         # update global weights
         model_global.load_state_dict(global_weights)
 
@@ -673,7 +678,7 @@ def train(
         # model_global.eval()
         # evaluate(model_global, valid_loader)
         # -- --
-        main_log_freq = 1
+        main_log_freq = 10
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 
@@ -693,7 +698,7 @@ def train(
                     disparate_impact_arr.append(disparate_impact)
                     
 
-                    writer.add_scalar('disparate_impact/' + str(i), disparate_impact, epoch)   
+                    # writer.add_scalar('disparate_impact/' + str(i), disparate_impact, epoch)   
                 
 
             # print('mean_b: ', np.mean(np.array(disparate_impact_b_arr)))

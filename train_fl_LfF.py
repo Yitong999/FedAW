@@ -444,7 +444,7 @@ def train(
         # Calculate avg training accuracy over all users at every epoch
 
         # -- --
-        main_log_freq = 1
+        main_log_freq = 50
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 
@@ -462,8 +462,6 @@ def train(
                 if not np.isnan(disparate_impact):
                     disparate_impact_arr.append(disparate_impact)
                     
-
-                    writer.add_scalar('disparate_impact/' + str(i), disparate_impact, epoch)   
                 
 
             # print('mean_b: ', np.mean(np.array(disparate_impact_b_arr)))
