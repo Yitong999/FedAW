@@ -19,7 +19,7 @@ with warnings.catch_warnings():
     from torch.utils.tensorboard import SummaryWriter
 
 from config import ex
-from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit, FedFairAvg
+from data.util import get_dataset, IdxDataset, ZippedDataset, average_weights, DatasetSplit, FedWt_v1, FedWt_v2
 from module.loss import GeneralizedCELoss
 from module.util import get_model
 from util import MultiDimAverageMeter, EMA
@@ -189,8 +189,8 @@ def train(
         bias_criterion = GeneralizedCELoss() #hacked
 
         
-        sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
-        sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
+        # sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
+        # sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         
         score = 0 # score for weight
         for step in tqdm(range(local_epochs)):
@@ -235,6 +235,7 @@ def train(
             loss_per_sample_b = loss_b
             loss_per_sample_d = loss_d
 
+            '''undo EMa
             # EMA sample loss
             sample_loss_ema_b.update(loss_b, index)
             sample_loss_ema_d.update(loss_d, index)
@@ -256,7 +257,8 @@ def train(
                 max_loss_d = sample_loss_ema_d.max_loss(c)
                 loss_b[class_index] /= max_loss_b
                 loss_d[class_index] /= max_loss_d
-
+            '''
+            
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
             score += loss_weight.mean().item() # assign value as score metrics
             print('loss_weight shape: ', loss_weight.shape)
@@ -383,8 +385,7 @@ def train(
                 #     print('priviledge_correct_count: ', priviledge_correct_count)
                 #     print()
 
-
-        
+ 
         disparate_impact = np.mean(np.array(result))
 
         model.train()
@@ -430,7 +431,7 @@ def train(
 
         # update global weights
         # global_weights = average_weights(local_weights)
-        global_weights = FedFairAvg(local_weights, scores)
+        global_weights = FedWt_v1(local_weights, scores)
 
         # update global weights
         model_global.load_state_dict(global_weights)
