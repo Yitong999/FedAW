@@ -181,7 +181,7 @@ def train(
             transform_split="train",
         )
     
-    data_set_tag_list = ['ColoredMNIST-Skewed0.001-Severity3', 'ColoredMNIST-Skewed0.001-Severity4', 
+    data_set_tag_list = ['ColoredMNIST-Skewed0.005-Severity1', 'ColoredMNIST-Skewed0.005-Severity2', 
                          'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
                          'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
                          'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4',
