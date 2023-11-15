@@ -632,7 +632,7 @@ def train(
     
     model_b_arr = {}
     for epoch in tqdm(range(global_epochs)):
-        local_weights, local_losses, local_loss_ori, local_loss_adv, scores = [], [], [], []
+        local_weights, local_losses, local_loss_ori, local_loss_adv, scores = [], [], [], [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
         model_global.train()
@@ -663,7 +663,7 @@ def train(
 
         # update global weights
         global_weights = average_weights(local_weights)
-        # global_weights = FedWt_v1(local_weights)
+        # global_weights = FedWt_v1(local_weights, scores)
         # update global weights
         model_global.load_state_dict(global_weights)
 

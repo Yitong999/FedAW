@@ -18,18 +18,10 @@ with warnings.catch_warnings():
     from torch.utils.tensorboard import SummaryWriter
 
 from config import ex
-from data.util import get_dataset, IdxDataset, ZippedDataset, DatasetSplit
+from data.util import get_dataset, IdxDataset, ZippedDataset
 from module.loss import GeneralizedCELoss
 from module.util import get_model
 from util import MultiDimAverageMeter, EMA
-from data.sampling import noniid, iid, extreme_noniid
-import random
-
-seed=0
-torch.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
 
     
 @ex.automain
@@ -55,24 +47,12 @@ def train(
     device = torch.device(device)
     start_time = datetime.now()
     writer = SummaryWriter(os.path.join(log_dir, "summary", main_tag))
-
-    
     train_dataset = get_dataset(
         dataset_tag,
         data_dir=data_dir,
         dataset_split="train",
         transform_split="train",
     )
-
-    num_users = 10
-    frac = 1
-
-    user_groups = noniid(train_dataset, num_users)
-    # print('user_groups: ', user_groups)
-    train_dataset_list = [
-        DatasetSplit(train_dataset, user_groups[i])
-        for i in range(10)]
-    
     valid_dataset = get_dataset(
         dataset_tag,
         data_dir=data_dir,
@@ -89,16 +69,6 @@ def train(
         
     train_dataset = IdxDataset(train_dataset)
     valid_dataset = IdxDataset(valid_dataset)    
-
-    train_loader_list = [
-        DataLoader(
-            train_dataset_list[i],
-            batch_size=main_batch_size,
-            shuffle=True,
-            num_workers=0,
-            pin_memory=True,
-        ) 
-    for i in range(10)]
 
     # make loader    
     train_loader = DataLoader(
@@ -201,7 +171,7 @@ def train(
         try:
             index, data, attr = next(train_iter)
         except:
-            train_iter = iter(train_loader_list[1])
+            train_iter = iter(train_loader)
             index, data, attr = next(train_iter)
 
         data = data.to(device)

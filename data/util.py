@@ -143,10 +143,11 @@ def get_dataset(dataset_tag, data_dir, dataset_split, transform_split, color = N
 
     return dataset
 
-def average_weights(w):
+def average_weights(w, scores):
     """
     Returns the average of the weights.
     """
+    print('scores in FedAVG: ', scores)
     w_avg = copy.deepcopy(w[0])
     for key in w_avg.keys():
         for i in range(1, len(w)):

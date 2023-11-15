@@ -19,8 +19,9 @@ with warnings.catch_warnings():
     from torch.utils.tensorboard import SummaryWriter
 
 from config import ex
-from data.util import get_dataset, IdxDataset, ZippedDataset,average_weights, DatasetSplit
+from data.util import get_dataset, IdxDataset, ZippedDataset,average_weights, DatasetSplit, FedWt_v1, FedWt_v2
 from module.util import get_model
+from module.loss import GeneralizedCELoss
 from util import MultiDimAverageMeter
 
 import math
@@ -63,13 +64,12 @@ def train(
             transform_split="train",
         )
     
-    data_set_tag_list = ['ColoredMNIST-Skewed0.001-Severity3', 'ColoredMNIST-Skewed0.001-Severity4', 
+   
+    data_set_tag_list = ['ColoredMNIST-Skewed0.005-Severity1', 'ColoredMNIST-Skewed0.005-Severity2', 
                          'ColoredMNIST-Skewed0.005-Severity3', 'ColoredMNIST-Skewed0.005-Severity4',
                          'ColoredMNIST-Skewed0.01-Severity3',  'ColoredMNIST-Skewed0.01-Severity4',
                          'ColoredMNIST-Skewed0.02-Severity3',  'ColoredMNIST-Skewed0.02-Severity4',
                          'ColoredMNIST-Skewed0.05-Severity3', 'ColoredMNIST-Skewed0.05-Severity4']
-   
-    
     
     train_loader_list = []
     valid_loader_list = []
@@ -128,10 +128,11 @@ def train(
     
     model = get_model(model_tag, num_classes).to(device)
     
+    model_biased = get_model(model_tag, num_classes).to(device)
 
     
     # Training
-    def update_weights(model, client, epoch, local_epochs=10):
+    def update_weights(model_b, model, client, epoch, local_epochs=10):
         # Set mode to train model
         model.train()
         
@@ -145,9 +146,22 @@ def train(
                 weight_decay=main_weight_decay,
                 momentum=0.9,
             )
+
+            optimizer_b = torch.optim.SGD(
+                model.parameters(),
+                lr=main_learning_rate,
+                weight_decay=main_weight_decay,
+                momentum=0.9,
+            )
             
         elif main_optimizer_tag == "Adam":
             optimizer = torch.optim.Adam(
+                model.parameters(),
+                lr=main_learning_rate,
+                weight_decay=main_weight_decay,
+            )
+
+            optimizer_b = torch.optim.Adam(
                 model.parameters(),
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
@@ -159,7 +173,7 @@ def train(
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
             )
-            optimizer = torch.optim.AdamW(
+            optimizer_b = torch.optim.AdamW(
                 model.parameters(),
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
@@ -169,12 +183,12 @@ def train(
         
         # define loss
         criterion = nn.CrossEntropyLoss(reduction='none')
-
+        bias_criterion = GeneralizedCELoss()
         '''
         sample_loss_ema_b = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         sample_loss_ema_d = EMA(torch.LongTensor(train_target_attr), alpha=0.7)
         '''
-
+        score = 0
         for step in tqdm(range(local_epochs)):
             batch_loss = []
 
@@ -201,16 +215,39 @@ def train(
 
 
             logit = model(data)
-            loss_per_sample = criterion(logit.squeeze(1), label)
 
-            loss = loss_per_sample.mean()
+            logit_b = model_b(data)
+            # loss_per_sample = criterion(logit.squeeze(1), label)
+
+            loss_b = criterion(logit_b, label).cpu().detach()
+            loss = criterion(logit, label).cpu().detach()
+
+            if np.isnan(loss_b.mean().item()):
+                raise NameError('loss_b')
+            if np.isnan(loss.mean().item()):
+                raise NameError('loss_d')
+            
+            loss_weight = loss_b / (loss_b + loss + 1e-8)
+            score += loss_weight.mean().item() # assign value as score metrics
+
+
+
+            loss_b_update = bias_criterion(logit_b, label)
+            loss_d_update = criterion(logit, label)
+
+            loss_sum = loss_b_update.mean() + loss_d_update.mean()
 
 
             optimizer.zero_grad()
-            loss.backward()
+            optimizer_b.zero_grad()
+
+
+            loss_sum.backward()
+
             optimizer.step()
+            optimizer_b.step()
     
-            batch_loss.append(loss.item())
+            batch_loss.append(loss.mean().item())
         #------ finish updating a client's local model -------
 
         epoch_loss.append(sum(batch_loss)/len(batch_loss))
@@ -228,7 +265,7 @@ def train(
         #         writer.add_scalar('disparate_impact_client_1/' + str(i), disparate_impact, epoch)  
             
         
-        return model.state_dict(), sum(epoch_loss) / len(epoch_loss)
+        return model_b.state_dict(), model.state_dict(), sum(epoch_loss) / len(epoch_loss), score
     
     
     # define evaluation function
@@ -298,12 +335,15 @@ def train(
     cv_loss, cv_acc = [], []
     print_every = 2
     val_loss_pre, counter = 0, 0
+    
 
     global_epochs = main_num_steps
     num_users = 10
     frac = 1
 
+    model_b_arr = {}
     for epoch in tqdm(range(global_epochs)):
+        scores = []
         local_weights, local_losses = [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
 
@@ -314,17 +354,29 @@ def train(
         
 
         for idx in idxs_users:
-            
+            try:
+                model_b = model_b_arr[idx]
+                # print('### old model_b is loaded###')
+            except:
+                model_b_arr[idx] = copy.deepcopy(model_biased)
+                # model_b_arr[idx] = copy.deepcopy(model_biased)
+                model_b = model_b_arr[idx]
+
             model_d = copy.deepcopy(model_global)
 
-            w_d, loss = update_weights(model_d, idx, epoch, local_epochs=10)
+            w_b, w_d, loss, score = update_weights(model_b, model_d, idx, epoch, local_epochs=10)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
+            model_b_arr[idx].load_state_dict(w_b)
+            scores.append(score)
 
             
 
         # update global weights
-        global_weights = average_weights(local_weights)
+        if epoch < 400:
+            global_weights = average_weights(local_weights, scores)
+        else:
+            global_weights = FedWt_v1(local_weights, scores)
 
         # update global weights
         model_global.load_state_dict(global_weights)
@@ -337,7 +389,7 @@ def train(
         # model_global.eval()
         # evaluate(model_global, valid_loader)
         # -- --
-        main_log_freq = 1
+        main_log_freq = 5
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 
@@ -355,7 +407,7 @@ def train(
                 disparate_impact_arr.append(disparate_impact)
                 
 
-                writer.add_scalar('disparate_impact/' + str(i), disparate_impact, epoch)   
+                # writer.add_scalar('disparate_impact/' + str(i), disparate_impact, epoch)   
                 
 
             # print('mean_b: ', np.mean(np.array(disparate_impact_b_arr)))
