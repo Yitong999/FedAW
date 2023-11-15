@@ -400,14 +400,14 @@ def train(
         # update global weights
         model_global.load_state_dict(global_weights)
         
-        if epoch == 2:
-            # Save the entire model
-            torch.save(model_global, 'models/model_global.pth')
-            print('### saved global model')
+        # if epoch == 2:
+        #     # Save the entire model
+        #     torch.save(model_global, 'models/model_global.pth')
+        #     print('### saved global model')
 
-            for idx in idxs_users:
-                torch.save(model_b_arr[idx], f'models/model_b_{idx}.pth')
-            print('### saved local biased model')
+        #     for idx in idxs_users:
+        #         torch.save(model_b_arr[idx], f'models/model_b_{idx}.pth')
+        #     print('### saved local biased model')
 
 
 
