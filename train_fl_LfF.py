@@ -431,8 +431,8 @@ def train(
             
 
         # update global weights
-        # global_weights = average_weights(local_weights)
-        global_weights = FedWt_v1(local_weights, scores)
+        global_weights = average_weights(local_weights, scores)
+        # global_weights = FedWt_v1(local_weights, scores)
 
         # update global weights
         model_global.load_state_dict(global_weights)

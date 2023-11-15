@@ -235,6 +235,24 @@ def train(
             loss_b_update = bias_criterion(logit_b, label)
             loss_d_update = criterion(logit, label)
 
+            bias_attr = attr[:, bias_attr_idx]
+
+            aligned_mask = (label == bias_attr).cpu()
+            skewed_mask = (label != bias_attr).cpu()
+
+            
+            # check if biased model is biased
+            if aligned_mask.any().item():
+                writer.add_scalar(f"loss_client_{client}/b_train_aligned", loss_b[aligned_mask].mean(), local_epochs*epoch+step)
+
+            if skewed_mask.any().item():
+                writer.add_scalar(f"loss_client_{client}/b_train_skewed", loss_b[skewed_mask].mean(), local_epochs*epoch+step)
+
+            # writer.add_scalar("loss_client_1/b_train_val", loss_per_sample_b.mean(), local_epochs*epochs+step)
+            writer.add_scalar(f"loss_client_{client}/b_train_ce", loss_b.mean(), local_epochs*epoch+step)
+            writer.add_scalar(f"loss_client_{client}/b_train_gce", loss_b_update.mean(), local_epochs*epoch+step)
+
+            
             loss_sum = loss_b_update.mean() + loss_d_update.mean()
 
 
@@ -342,6 +360,7 @@ def train(
     frac = 1
 
     model_b_arr = {}
+    idxs_users = [i for i in range(10)]
     for epoch in tqdm(range(global_epochs)):
         scores = []
         local_weights, local_losses = [], []
@@ -350,7 +369,7 @@ def train(
         model_global.train()
         m = max(int(frac * num_users), 1)
         # idxs_users = np.random.choice(range(num_users), m, replace=False)
-        idxs_users = [i for i in range(10)]
+        
         
 
         for idx in idxs_users:
@@ -370,16 +389,29 @@ def train(
             model_b_arr[idx].load_state_dict(w_b)
             scores.append(score)
 
-            
+       
 
         # update global weights
-        if epoch < 400:
+        if epoch <= 600:
             global_weights = average_weights(local_weights, scores)
         else:
             global_weights = FedWt_v1(local_weights, scores)
 
         # update global weights
         model_global.load_state_dict(global_weights)
+        
+        if epoch == 2:
+            # Save the entire model
+            torch.save(model_global, 'models/model_global.pth')
+            print('### saved global model')
+
+            for idx in idxs_users:
+                torch.save(model_b_arr[idx], f'models/model_b_{idx}.pth')
+            print('### saved local biased model')
+
+
+
+
 
         loss_avg = sum(local_losses) / len(local_losses)
         train_loss.append(loss_avg)
