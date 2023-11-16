@@ -132,7 +132,7 @@ def train(
 
     
     # Training
-    def update_weights(model_b, model, client, epoch, local_epochs=10):
+    def update_weights(model_b, model, client, epoch, local_epochs=20):
         # Set mode to train model
         model.train()
         
@@ -148,7 +148,7 @@ def train(
             )
 
             optimizer_b = torch.optim.SGD(
-                model.parameters(),
+                model_b.parameters(),
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
                 momentum=0.9,
@@ -162,7 +162,7 @@ def train(
             )
 
             optimizer_b = torch.optim.Adam(
-                model.parameters(),
+                model_b.parameters(),
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
             )
@@ -174,7 +174,7 @@ def train(
                 weight_decay=main_weight_decay,
             )
             optimizer_b = torch.optim.AdamW(
-                model.parameters(),
+                model_b.parameters(),
                 lr=main_learning_rate,
                 weight_decay=main_weight_decay,
             )
@@ -383,7 +383,7 @@ def train(
 
             model_d = copy.deepcopy(model_global)
 
-            w_b, w_d, loss, score = update_weights(model_b, model_d, idx, epoch, local_epochs=10)
+            w_b, w_d, loss, score = update_weights(model_b, model_d, idx, epoch)
             local_weights.append(copy.deepcopy(w_d))
             local_losses.append(copy.deepcopy(loss))
             model_b_arr[idx].load_state_dict(w_b)
@@ -392,7 +392,7 @@ def train(
        
 
         # update global weights
-        if epoch <= 600:
+        if epoch <= 100:
             global_weights = average_weights(local_weights, scores)
         else:
             global_weights = FedWt_v1(local_weights, scores)

@@ -135,7 +135,7 @@ def train(
     model_biased = get_model(model_tag, num_classes).to(device)
 
     # Training
-    def update_weights(model_b, model_d, client, epochs, local_epochs=10):
+    def update_weights(model_b, model_d, client, epochs, local_epochs=20):
         # Set mode to train model
         model_b.train()
         model_d.train()
@@ -194,6 +194,7 @@ def train(
         
         score = 0 # score for weight
         for step in tqdm(range(local_epochs)):
+    
             batch_loss = []
 
             # train main model
@@ -260,10 +261,9 @@ def train(
             '''
 
             loss_weight = loss_b / (loss_b + loss_d + 1e-8)
+            # if local_epochs - step <= 5: #evaluate scores in the last local epoch
             score += loss_weight.mean().item() # assign value as score metrics
-            
-            if step == 9:
-                print('score: ', score)
+        
             
             if np.isnan(loss_weight.mean().item()):
                 print('loss_weight mean: ', loss_weight.mean())
@@ -402,6 +402,8 @@ def train(
     global_epochs = main_num_steps
     
     model_b_arr = {}
+    idxs_users = [i for i in range(10)]
+    # idxs_users = [0, 4, 9]
     for epoch in tqdm(range(global_epochs)):
         local_weights, local_losses, scores, local_loss_ori, local_loss_adv = [], [], [], [], []
         print(f'\n | Global Training Round : {epoch+1} |\n')
@@ -409,7 +411,7 @@ def train(
         model_global.train()
         # m = max(int(frac * num_users), 1)
         # idxs_users = np.random.choice(range(num_users), m, replace=False)
-        idxs_users = [i for i in range(10)]
+        
 
         for idx in idxs_users:
             try:
@@ -431,7 +433,10 @@ def train(
             
 
         # update global weights
-        global_weights = average_weights(local_weights, scores)
+        if epoch < 100:
+            global_weights = average_weights(local_weights, scores)
+        else:
+            global_weights = FedWt_v1(local_weights, scores)
         # global_weights = FedWt_v1(local_weights, scores)
 
         # update global weights
@@ -444,7 +449,7 @@ def train(
         # Calculate avg training accuracy over all users at every epoch
 
         # -- --
-        main_log_freq = 50
+        main_log_freq = 5
         if epoch % main_log_freq == 0:
             print('acc: ', torch.mean(evaluate(model_global, valid_loader)))
 
