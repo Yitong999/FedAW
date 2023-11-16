@@ -1,12 +1,6 @@
-# Learning from Failure: Training Debiased Classifier from Biased Classifier
+# Adapted weighted aggregation in Federated Learning
 
-Official PyTorch implementation of ["Learning from Failure: Training Debiased Classifier from Biased Classifier"](https://arxiv.org/pdf/2007.02561.pdf) (NeurIPS 2020) by Junhyun Nam et al. 
-
-
-## Install dependencies
-```
-pip install -r requirements.txt
-```
+PyTorch implementation of "Adapted weighted aggregation in Federated Learning"
 
 
 ## Make dataset
@@ -14,18 +8,22 @@ pip install -r requirements.txt
 python make_dataset.py with server_user make_target=colored_mnist
 ```
 
+## Training Vanilla in Federated Setting
+```
+python train_fl_LfF.py with server_user colored_mnist skewed3 severity4
+```
 
-## Training
+## Training LfF in Federated Setting
 ```
-python train.py with server_user colored_mnist skewed3 severity4
+python train_fl_LfF.py with server_user colored_mnist skewed3 severity4
 ```
 
-## Citation
+## Training BiasAdv in Federated Setting
 ```
-@inproceedings{nam2020learning,
-  title={Learning from Failure: Training Debiased Classifier from Biased Classifier},
-  author={Junhyun Nam and Hyuntak Cha and Sungsoo Ahn and Jaeho Lee and Jinwoo Shin},
-  booktitle={Advances in Neural Information Processing Systems},
-  year={2020}
-}
+python fedrated_train.py with server_user colored_mnist skewed3 severity4
 ```
+
+## Training DFA in Federated Setting
+[Learning-Debiased-Disentangled-FL
+](https://github.com/Yitong999/Learning-Debiased-Disentangled-FL)
+
